@@ -8,10 +8,19 @@ DOCKER_TAG = $(ELECTRUM_VERSION)
 # Build Docker image
 build: docker_build docker_tag output
 
+# Build Docker image without cache bursts
+dev: docker_build docker_tag output
+
 # Build and push Docker image
 release: docker_tag docker_push output
 
 default: docker_build output
+
+docker_dev:
+	@docker build \
+		--build-arg VERSION=$(ELECTRUM_VERSION) \
+		--build-arg CHECKSUM_SHA512=$(ELECTRUM_CHECKSUM_SHA512) \\
+		-t $(DOCKER_IMAGE):$(DOCKER_TAG) .
 
 docker_build:
 	@docker build \

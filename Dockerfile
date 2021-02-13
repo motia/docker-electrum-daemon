@@ -1,12 +1,10 @@
-FROM python:3.9.1-alpine
+FROM python:3.9.1-alpine3.13 as electrumDaemonBase
 
-ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION
 ARG CHECKSUM_SHA512
 LABEL maintainer="osintsev@gmail.com" \
 	org.label-schema.vendor="Distirbuted Solutions, Inc." \
-	org.label-schema.build-date=$BUILD_DATE \
 	org.label-schema.name="Electrum wallet (RPC enabled)" \
 	org.label-schema.description="Electrum wallet with JSON-RPC enabled (daemon mode)" \
 	org.label-schema.version=$VERSION \
@@ -27,14 +25,28 @@ ENV ELECTRUM_NETWORK mainnet
 # IMPORTANT: always verify gpg signature before changing a hash here!
 ENV ELECTRUM_CHECKSUM_SHA512 $CHECKSUM_SHA512
 
-RUN adduser -D $ELECTRUM_USER && \
-    apk --no-cache add --virtual build-dependencies gcc musl-dev && \
-    wget https://download.electrum.org/${ELECTRUM_VERSION}/Electrum-${ELECTRUM_VERSION}.tar.gz && \
+RUN wget https://download.electrum.org/${ELECTRUM_VERSION}/Electrum-${ELECTRUM_VERSION}.tar.gz && \
     [ "${ELECTRUM_CHECKSUM_SHA512}  Electrum-${ELECTRUM_VERSION}.tar.gz" = "$(sha512sum Electrum-${ELECTRUM_VERSION}.tar.gz)" ] && \
-    echo -e "**************************\n SHA 512 Checksum OK\n**************************" && \
-    pip3 install Electrum-${ELECTRUM_VERSION}.tar.gz && \
-    rm -f Electrum-${ELECTRUM_VERSION}.tar.gz && \
-    apk del build-dependencies
+    echo -e "**************************\n SHA 512 Checksum OK\n**************************" 
+
+ARG USE_CRYPTOGRAPHY_LIB
+
+RUN adduser -D $ELECTRUM_USER && \
+		APK_DEPS="libsecp256k1-dev" && PYTHON_LIBS="pycryptodomex" && \
+		if [[ $USE_CRYPTOGRAPHY_LIB ]]; then \
+			PYTHON_LIBS="cryptography>=2.6,<3" \
+			APK_DEPS="$APK_DEPS libressl-dev libffi-dev" \
+		;fi && \
+		apk --no-cache add jq $APK_DEPS && \
+		apk --no-cache add --virtual build-dependencies gcc musl-dev && \
+		pip3 install --no-cache-dir $PYTHON_LIBS; \ 
+    pip3 install --no-cache-dir Electrum-${ELECTRUM_VERSION}.tar.gz && \
+		rm -f Electrum-${ELECTRUM_VERSION}.tar.gz && \
+		apk del build-dependencies
+
+FROM electrumDaemonBase as electrumDaemon
+ARG BUILD_DATE
+LABEL org.label-schema.build-date=$BUILD_DATE
 
 RUN mkdir -p /data \
 	  ${ELECTRUM_HOME}/.electrum/wallets/ \
