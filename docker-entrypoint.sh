@@ -4,6 +4,7 @@ set -ex
 # Network switch
 if [ "$TESTNET" = true ] || [ "$ELECTRUM_NETWORK" = "testnet" ]; then
   FLAGS='--testnet'
+  ELECTRUM_NETWORK="testnet"
 elif [ "$ELECTRUM_NETWORK" = "regtest" ]; then
   FLAGS='--regtest'
 elif [ "$ELECTRUM_NETWORK" = "simnet" ]; then
@@ -20,7 +21,7 @@ electrum $FLAGS --offline setconfig rpcpassword ${ELECTRUM_PASSWORD}
 electrum $FLAGS --offline setconfig rpchost 0.0.0.0
 electrum $FLAGS --offline setconfig rpcport 7000
 
-WALLETS_PATH="$(pwd)/.electrum/wallets/default_wallet"
+WALLETS_PATH="$(pwd)/.electrum/$ELECTRUM_NETWORK/wallets/default_wallet"
 
 # Check load wallet or create
 if [ -f "$WALLETS_PATH" ]; then
@@ -32,8 +33,10 @@ fi
 
 # disable walllet change addresses
 # (using temporary file because "jq FILE > FILE" is not safe)
-jq ". + {use_change:false}" $WALLETS_PATH > $WALLETS_PATH.temp
-mv $WALLETS_PATH.temp $WALLETS_PATH
+if [ "$DISABLE_CHANGE" = true ]; then
+  jq ". + {use_change:false}" $WALLETS_PATH > $WALLETS_PATH.temp
+  mv $WALLETS_PATH.temp $WALLETS_PATH
+fi
 
 # Run application
 electrum $FLAGS daemon -d
